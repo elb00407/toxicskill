@@ -1,0 +1,23 @@
+{
+  "name": "toxicskill",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.88.5",
+    "@react-three/fiber": "^8.15.19",
+    "next": "14.2.5",
+    "nodemailer": "^6.9.8",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "three": "^0.158.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.3",
+    "@types/react": "19.2.7",
+    "typescript": "5.9.3"
+  }
+}
