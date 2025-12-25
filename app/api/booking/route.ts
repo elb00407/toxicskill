@@ -9,126 +9,86 @@ export async function POST(req: Request) {
       name,
       phone,
       pcName,
+      pcType,
       date,
       time,
       packageTitle,
       price,
     } = body;
 
-    // Проверяем ТОЛЬКО реально обязательные данные
-    if (!pcName || !date || time === null || !packageTitle || !price) {
+    // 🔒 ЖЁСТКАЯ ВАЛИДАЦИЯ (чтобы не было 400 без причины)
+    if (
+      !name ||
+      !phone ||
+      !pcName ||
+      !pcType ||
+      !date ||
+      time === undefined ||
+      !packageTitle ||
+      !price
+    ) {
       return NextResponse.json(
-        { error: "Недостаточно данных для бронирования" },
+        { error: "Некорректные данные бронирования" },
         { status: 400 }
       );
     }
 
-    // Безопасные значения
-    const clientName = name && name.trim() ? name : "Гость (не указано)";
-    const clientPhone = phone && phone.trim() ? phone : "Не указано";
+    // 🔎 Проверка ENV (ОЧЕНЬ ВАЖНО)
+    if (
+      !process.env.SMTP_USER ||
+      !process.env.SMTP_PASS ||
+      !process.env.ADMIN_EMAIL
+    ) {
+      console.error("❌ SMTP ENV MISSING", {
+        SMTP_USER: process.env.SMTP_USER,
+        SMTP_PASS: process.env.SMTP_PASS ? "OK" : "MISSING",
+        ADMIN_EMAIL: process.env.ADMIN_EMAIL,
+      });
 
-    // SMTP
+      return NextResponse.json(
+        { error: "Почта временно недоступна" },
+        { status: 500 }
+      );
+    }
+
+    // ✉️ ТРАНСПОРТ
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
+      service: "gmail",
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
     });
 
-    // Красивое письмо админу
-    const html = `
-      <div style="
-        background:#0b1220;
-        padding:24px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial;
-        color:#ffffff;
-      ">
-        <div style="
-          max-width:520px;
-          margin:0 auto;
-          background:linear-gradient(180deg,#0f172a,#020617);
-          border-radius:18px;
-          padding:24px;
-          box-shadow:0 20px 60px rgba(0,0,0,.6);
-        ">
-
-          <h1 style="
-            margin:0 0 16px;
-            color:#22c55e;
-            font-size:22px;
-            text-align:center;
-          ">
-            🎮 Новая бронь ToxicSkill
-          </h1>
-
-          <div style="margin-top:20px">
-            <table style="width:100%; border-collapse:collapse; font-size:14px">
-              <tr>
-                <td style="padding:6px 0; opacity:.7">Клиент</td>
-                <td style="padding:6px 0; text-align:right"><b>${clientName}</b></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 0; opacity:.7">Телефон</td>
-                <td style="padding:6px 0; text-align:right">${clientPhone}</td>
-              </tr>
-              <tr>
-                <td style="padding:6px 0; opacity:.7">ПК</td>
-                <td style="padding:6px 0; text-align:right"><b>${pcName}</b></td>
-              </tr>
-              <tr>
-                <td style="padding:6px 0; opacity:.7">Дата</td>
-                <td style="padding:6px 0; text-align:right">${date}</td>
-              </tr>
-              <tr>
-                <td style="padding:6px 0; opacity:.7">Время</td>
-                <td style="padding:6px 0; text-align:right">
-                  ${String(time).padStart(2, "0")}:00
-                </td>
-              </tr>
-            </table>
-          </div>
-
-          <div style="
-            margin-top:18px;
-            padding:14px;
-            border-radius:12px;
-            background:rgba(34,197,94,.12);
-          ">
-            <div style="font-size:13px; opacity:.7">Пакет</div>
-            <div style="font-size:16px; font-weight:600">${packageTitle}</div>
-            <div style="margin-top:6px; font-size:18px; color:#22c55e">
-              💰 ${price} BYN
-            </div>
-          </div>
-
-          <div style="
-            margin-top:20px;
-            text-align:center;
-            font-size:12px;
-            opacity:.5;
-          ">
-            Заявка создана через систему бронирования ToxicSkill
-          </div>
-
-        </div>
+    // 📧 ПИСЬМО АДМИНУ (КРАСИВОЕ)
+    const mailHtml = `
+      <div style="font-family:Arial,sans-serif; background:#0b1220; padding:20px; color:#fff">
+        <h2 style="color:#22c55e;">Новая бронь в ToxicSkill</h2>
+        <p><b>Имя:</b> ${name}</p>
+        <p><b>Телефон:</b> ${phone}</p>
+        <hr />
+        <p><b>ПК:</b> ${pcName}</p>
+        <p><b>Тип:</b> ${pcType.toUpperCase()}</p>
+        <p><b>Дата:</b> ${date}</p>
+        <p><b>Время:</b> ${String(time).padStart(2, "0")}:00</p>
+        <p><b>Пакет:</b> ${packageTitle}</p>
+        <h3 style="color:#22c55e;">Сумма: ${price} BYN</h3>
       </div>
     `;
 
     await transporter.sendMail({
       from: `"ToxicSkill Booking" <${process.env.SMTP_USER}>`,
       to: process.env.ADMIN_EMAIL,
-      subject: "🎮 Новая бронь в ToxicSkill",
-      html,
+      subject: "🟢 Новая бронь — ToxicSkill",
+      html: mailHtml,
     });
 
+    // ✅ УСПЕХ
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("BOOKING ERROR:", error);
+  } catch (err) {
+    console.error("❌ BOOKING ERROR:", err);
     return NextResponse.json(
-      { error: "Ошибка сервера при отправке брони" },
+      { error: "Ошибка сервера" },
       { status: 500 }
     );
   }
