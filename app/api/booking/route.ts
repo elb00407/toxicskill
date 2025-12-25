@@ -16,9 +16,11 @@ export async function POST(req: Request) {
       price,
     } = body;
 
-    // 🔒 ЖЁСТКАЯ ВАЛИДАЦИЯ (чтобы не было 400 без причины)
+    // ✅ СТРАХОВКА ОТ "ГОСТЬ"
+    const safeName =
+      name && name.trim() !== "" ? name : "Не указано";
+
     if (
-      !name ||
       !phone ||
       !pcName ||
       !pcType ||
@@ -33,25 +35,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔎 Проверка ENV (ОЧЕНЬ ВАЖНО)
     if (
       !process.env.SMTP_USER ||
       !process.env.SMTP_PASS ||
       !process.env.ADMIN_EMAIL
     ) {
-      console.error("❌ SMTP ENV MISSING", {
-        SMTP_USER: process.env.SMTP_USER,
-        SMTP_PASS: process.env.SMTP_PASS ? "OK" : "MISSING",
-        ADMIN_EMAIL: process.env.ADMIN_EMAIL,
-      });
-
+      console.error("SMTP ENV MISSING");
       return NextResponse.json(
         { error: "Почта временно недоступна" },
         { status: 500 }
       );
     }
 
-    // ✉️ ТРАНСПОРТ
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -60,18 +55,21 @@ export async function POST(req: Request) {
       },
     });
 
-    // 📧 ПИСЬМО АДМИНУ (КРАСИВОЕ)
     const mailHtml = `
-      <div style="font-family:Arial,sans-serif; background:#0b1220; padding:20px; color:#fff">
-        <h2 style="color:#22c55e;">Новая бронь в ToxicSkill</h2>
-        <p><b>Имя:</b> ${name}</p>
+      <div style="font-family:Arial; background:#0b1220; padding:20px; color:#fff">
+        <h2 style="color:#22c55e;">Новая бронь — ToxicSkill</h2>
+
+        <p><b>Имя:</b> ${safeName}</p>
         <p><b>Телефон:</b> ${phone}</p>
+
         <hr />
+
         <p><b>ПК:</b> ${pcName}</p>
         <p><b>Тип:</b> ${pcType.toUpperCase()}</p>
         <p><b>Дата:</b> ${date}</p>
         <p><b>Время:</b> ${String(time).padStart(2, "0")}:00</p>
         <p><b>Пакет:</b> ${packageTitle}</p>
+
         <h3 style="color:#22c55e;">Сумма: ${price} BYN</h3>
       </div>
     `;
@@ -83,10 +81,9 @@ export async function POST(req: Request) {
       html: mailHtml,
     });
 
-    // ✅ УСПЕХ
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("❌ BOOKING ERROR:", err);
+    console.error("BOOKING ERROR:", err);
     return NextResponse.json(
       { error: "Ошибка сервера" },
       { status: 500 }
