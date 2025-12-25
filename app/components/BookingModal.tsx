@@ -3,26 +3,47 @@
 import { useState } from "react";
 import BookingCalendar from "./BookingCalendar";
 
+type PcType = "standard" | "vip" | "console";
+
 type Step = 1 | 2 | 3 | 4 | 5;
 
-const PACKAGES = [
-  { id: "1h", title: "1 час", price: 6 },
-  { id: "3h", title: "3 часа", price: 15, popular: true },
-  { id: "5h", title: "5 часов", price: 21 },
-  { id: "morning", title: "Утро · 5 часов (8:00–11:00)", price: 15, from: 8, to: 11 },
-  { id: "day", title: "День · 5 часов (11:00–17:00)", price: 18, from: 11, to: 17 },
-  { id: "night", title: "Ночь · 10 часов (22:00–8:00)", price: 25, from: 22, to: 8, adult: true, popular: true },
-];
+type BookingModalProps = {
+  open: boolean;
+  pcName: string;
+  pcType: PcType;
+  onClose: () => void;
+};
+
+const PACKAGES = {
+  standard: [
+    { id: "1h", title: "1 час", price: 6 },
+    { id: "3h", title: "3 часа", price: 15, popular: true },
+    { id: "5h", title: "5 часов", price: 21 },
+    { id: "morning", title: "Утро · 5ч (8–11)", price: 15, from: 8, to: 11 },
+    { id: "day", title: "День · 5ч (11–17)", price: 18, from: 11, to: 17 },
+    { id: "night", title: "Ночь · 10ч (22–8)", price: 25, from: 22, to: 8, adult: true, popular: true },
+  ],
+  vip: [
+    { id: "1h", title: "1 час", price: 8 },
+    { id: "3h", title: "3 часа", price: 20, popular: true },
+    { id: "5h", title: "5 часов", price: 25 },
+    { id: "morning", title: "Утро · 5ч (8–11)", price: 20, from: 8, to: 11 },
+    { id: "day", title: "День · 5ч (11–17)", price: 23, from: 11, to: 17 },
+    { id: "night", title: "Ночь · 10ч (22–8)", price: 30, from: 22, to: 8, adult: true, popular: true },
+  ],
+  console: [
+    { id: "1h", title: "1 час", price: 10 },
+    { id: "3h", title: "3 часа", price: 25, popular: true },
+    { id: "5h", title: "5 часов", price: 40 },
+  ],
+};
 
 export default function BookingModal({
   open,
   pcName,
+  pcType,
   onClose,
-}: {
-  open: boolean;
-  pcName: string;
-  onClose: () => void;
-}) {
+}: BookingModalProps) {
   const [step, setStep] = useState<Step>(1);
   const [date, setDate] = useState<string | null>(null);
   const [time, setTime] = useState<number | null>(null);
@@ -31,6 +52,8 @@ export default function BookingModal({
   const [loading, setLoading] = useState(false);
 
   if (!open) return null;
+
+  const packages = PACKAGES[pcType];
 
   const canUsePackage = (p: any) => {
     if (!p.from) return true;
@@ -54,6 +77,7 @@ export default function BookingModal({
           name: localStorage.getItem("userName"),
           phone: localStorage.getItem("userPhone"),
           pcName,
+          pcType,
           date,
           time,
           packageTitle: selectedPackage.title,
@@ -61,7 +85,7 @@ export default function BookingModal({
         }),
       });
 
-      if (!res.ok) throw new Error("Ошибка отправки");
+      if (!res.ok) throw new Error();
       setStep(5);
     } catch {
       setError("Не удалось отправить бронь. Попробуйте позже.");
@@ -76,14 +100,14 @@ export default function BookingModal({
 
         {/* STEPS */}
         <div className="steps">
-          {["Дата", "Время", "Пакет", "Подтверждение", "Готово"].map((label, i) => (
-            <div key={label} className={step >= i + 1 ? "step active" : "step"}>
-              {label}
+          {["Дата", "Время", "Пакет", "Подтверждение", "Готово"].map((s, i) => (
+            <div key={s} className={step >= i + 1 ? "step active" : "step"}>
+              {s}
             </div>
           ))}
         </div>
 
-        {/* STEP 1 — DATE */}
+        {/* STEP 1 */}
         {step === 1 && (
           <>
             <h2>Выберите дату</h2>
@@ -101,12 +125,12 @@ export default function BookingModal({
           </>
         )}
 
-        {/* STEP 2 — TIME */}
+        {/* STEP 2 */}
         {step === 2 && (
           <>
             <h2>Во сколько вы придёте?</h2>
             <div className="clockGrid">
-              {[...Array(24)].map((_, h) => (
+              {Array.from({ length: 24 }).map((_, h) => (
                 <button
                   key={h}
                   className={`clock ${time === h ? "active" : ""}`}
@@ -129,12 +153,12 @@ export default function BookingModal({
           </>
         )}
 
-        {/* STEP 3 — PACKAGES */}
+        {/* STEP 3 */}
         {step === 3 && (
           <>
             <h2>Выберите пакет</h2>
             <div className="packageGrid compact">
-              {PACKAGES.map((p) => {
+              {packages.map((p: any) => {
                 const allowed = canUsePackage(p);
                 return (
                   <div
@@ -147,7 +171,7 @@ export default function BookingModal({
                     {p.popular && <div className="fireBadge">🔥 Популярно</div>}
                     <b>{p.title}</b>
                     <span>{p.price} BYN</span>
-                    {!allowed && <small>Недоступно для выбранного времени</small>}
+                    {!allowed && <small>Недоступно в выбранное время</small>}
                   </div>
                 );
               })}
@@ -165,12 +189,13 @@ export default function BookingModal({
           </>
         )}
 
-        {/* STEP 4 — CONFIRM */}
+        {/* STEP 4 */}
         {step === 4 && (
           <>
             <h2>Подтверждение брони</h2>
             <div className="summary">
               <div>ПК: <b>{pcName}</b></div>
+              <div>Тип: <b>{pcType.toUpperCase()}</b></div>
               <div>Дата: <b>{date}</b></div>
               <div>Время: <b>{String(time).padStart(2, "0")}:00</b></div>
               <div>Пакет: <b>{selectedPackage.title}</b></div>
@@ -190,18 +215,15 @@ export default function BookingModal({
           </>
         )}
 
-        {/* STEP 5 — SUCCESS */}
+        {/* STEP 5 */}
         {step === 5 && (
           <>
             <h2>Бронь отправлена 🎉</h2>
             <p className="successText">
-              Мы передали вашу бронь администратору.<br />
+              Ваша бронь успешно отправлена администратору.<br />
               Подойдите к администратору для подтверждения и оплаты.
             </p>
-
-            <button className="submitButton" onClick={onClose}>
-              Готово
-            </button>
+            <button className="submitButton" onClick={onClose}>Готово</button>
           </>
         )}
 
